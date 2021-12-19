@@ -35,10 +35,10 @@ resource "aws_route_table" "route_table" {
 }
 
 resource "aws_subnet" "main_subnet" {
-  availability_zone       = "us-east-1a"
+  availability_zone       = var.region
   vpc_id                  = aws_vpc.vpc.id
-  cidr_block              = "10.0.1.0/24"
-  map_public_ip_on_launch = true
+  cidr_block              = var.cidr_block
+  map_public_ip_on_launch = var.map_public_ip
 }
 
 resource "aws_route_table_association" "public_association" {
@@ -47,15 +47,15 @@ resource "aws_route_table_association" "public_association" {
 }
 
 resource "aws_launch_template" "lt_first" {
-  name          = "first_instance"
+  name          = var.name
   image_id      = data.aws_ssm_parameter.webserver_ami.value
-  instance_type = "t2.micro"
+  instance_type = var.instance_type
   network_interfaces {
     subnet_id       = aws_subnet.main_subnet.id
     security_groups = [aws_security_group.allow_tls.id]
   }
   placement {
-    availability_zone = "us-east-1a"
+    availability_zone = var.region
   }
   user_data = filebase64("${path.module}/scripts/install-nginx.sh")
   key_name  = aws_key_pair.deployer.id
@@ -70,10 +70,10 @@ data "aws_ssm_parameter" "webserver_ami" {
 
 resource "aws_autoscaling_group" "asg_first" {
   name               = "first_asg"
-  availability_zones = ["us-east-1a"]
-  desired_capacity   = 1
-  max_size           = 1
-  min_size           = 1
+  availability_zones = [var.region]
+  desired_capacity   = var.desired_capacity
+  max_size           = var.max_capacity
+  min_size           = var.min_capacity
 
   launch_template {
     id      = aws_launch_template.lt_first.id
@@ -82,7 +82,7 @@ resource "aws_autoscaling_group" "asg_first" {
 }
 
 resource "aws_security_group" "allow_tls" {
-  name        = "allow_tls"
+  name        = format("%s%s", var.name, "-allow_tls")
   description = "Allow TLS inbound traffic"
   vpc_id      = aws_vpc.vpc.id
   ingress {
